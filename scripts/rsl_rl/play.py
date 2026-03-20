@@ -1,129 +1,88 @@
-"""Script to play a checkpoint if an RL agent from RSL-RL."""
-
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
+import sys
+import os
+
+print("\n🚀 [DEBUG] play.py 成功被唤醒，准备连接引擎...\n")
 
 from isaaclab.app import AppLauncher
+import cli_args
 
-# local imports
-import cli_args  # isort: skip
-
-# add argparse arguments
-parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
-parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
-parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
-parser.add_argument(
-    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
-)
-parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
-parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-# append RSL-RL cli arguments
+# 1. 基础参数解析
+parser = argparse.ArgumentParser()
+parser.add_argument("--video", action="store_true", default=False)
+parser.add_argument("--video_length", type=int, default=200)
+parser.add_argument("--disable_fabric", action="store_true", default=False)
+parser.add_argument("--num_envs", type=int, default=32) # 默认 32 个环境
+parser.add_argument("--task", type=str, default="Isaac-UDisk-Grasp-v0")
 cli_args.add_rsl_rl_args(parser)
-# append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-args_cli = parser.parse_args()
-# always enable cameras to record video
-if args_cli.video:
-    args_cli.enable_cameras = True
+args_cli, hydra_args = parser.parse_known_args()
 
-# launch omniverse app
+# 2. 启动仿真引擎
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-"""Rest everything follows."""
+# 3. 强行锁定你的项目模块
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "../.."))
+extension_root_dir = os.path.join(project_root, "source", "peg_in_hole")
+sys.path.insert(0, extension_root_dir)
+
+try:
+    # 🌟 核心突破口：直接导入我们手写的配置类，跳过所有中间商！
+    from peg_in_hole.tasks.manipulation.peg_in_hole.env_cfg import GraspEnvCfg
+    from peg_in_hole.tasks.manipulation.peg_in_hole.agents import udisk_grasp_ppo_cfg
+    print("✅ 成功手动载入环境说明书与 PPO 大脑配置！")
+except Exception as e:
+    print(f"❌ 模块导入失败，请检查代码: {e}")
+    simulation_app.close()
+    sys.exit(1)
 
 import gymnasium as gym
-import os
 import torch
-
 from rsl_rl.runners import OnPolicyRunner
-
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
-from isaaclab.utils.dict import print_dict
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
-from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg
-
-# Import extensions to set up environment tasks
-import ext_template.tasks  # noqa: F401
-
+from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+from isaaclab_tasks.utils import get_checkpoint_path
 
 def main():
-    """Play with RSL-RL agent."""
-    # parse configuration
-    env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
-    )
-    agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)
+    print("\n[INFO] 开始实例化配置...")
+    env_cfg = GraspEnvCfg()
+    agent_cfg = udisk_grasp_ppo_cfg()
 
-    # specify directory for logging experiments
-    log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
-    log_root_path = os.path.abspath(log_root_path)
-    print(f"[INFO] Loading experiment from directory: {log_root_path}")
-    resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-    log_dir = os.path.dirname(resume_path)
+    # 覆盖环境数量为 32
+    env_cfg.scene.num_envs = args_cli.num_envs
 
-    # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-    # wrap for video recording
-    if args_cli.video:
-        video_kwargs = {
-            "video_folder": os.path.join(log_dir, "videos", "play"),
-            "step_trigger": lambda step: step == 0,
-            "video_length": args_cli.video_length,
-            "disable_logger": True,
-        }
-        print("[INFO] Recording videos during training.")
-        print_dict(video_kwargs, nesting=4)
-        env = gym.wrappers.RecordVideo(env, **video_kwargs)
+    # 锁定权重所在的日志文件夹
+    log_root_path = os.path.join(project_root, "logs", "rsl_rl", agent_cfg.experiment_name)
+    print(f"[INFO] 正在前往日志库提取大脑: {log_root_path}")
 
-    # convert to single-agent instance if required by the RL algorithm
+    print("[INFO] 正在构建物理世界...")
+    env = gym.make(args_cli.task, cfg=env_cfg)
+
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)
 
-    # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env)
 
-    print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-    # load previously trained model
-    ppo_runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-    ppo_runner.load(resume_path)
+    print("[INFO] 正在注入 PPO 算法...")
+    runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_root_path, device=agent_cfg.device)
 
-    # obtain the trained policy for inference
-    policy = ppo_runner.get_inference_policy(device=env.unwrapped.device)
+    # 自动搜索最新的权重文件 (.pt)
+    resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+    print(f"🌟 成功找到满级神装权重: {resume_path}")
+    runner.load(resume_path)
 
-    # export policy to onnx/jit
-    export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-    export_policy_as_jit(
-        ppo_runner.alg.actor_critic, ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.pt"
-    )
-    export_policy_as_onnx(
-        ppo_runner.alg.actor_critic, normalizer=ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
-    )
-
-    # reset environment
+    # 开启推理模式
+    policy = runner.get_inference_policy(device=env.unwrapped.device)
     obs, _ = env.get_observations()
-    timestep = 0
-    # simulate environment
+    
+    print("\n🎬 Action！开始播放抓取动画！\n")
     while simulation_app.is_running():
-        # run everything in inference mode
         with torch.inference_mode():
-            # agent stepping
             actions = policy(obs)
-            # env stepping
-            obs, _, _, _ = env.step(actions)
-        if args_cli.video:
-            timestep += 1
-            # Exit the play loop after recording one video
-            if timestep == args_cli.video_length:
-                break
-
-    # close the simulator
-    env.close()
-
+        obs, _, _, _ = env.step(actions)
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
     simulation_app.close()

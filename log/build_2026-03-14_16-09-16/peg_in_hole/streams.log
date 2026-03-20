@@ -1,0 +1,26 @@
+[0.343s] Invoking command in '/home/jmx001/my_program/my_robot_project/source/peg_in_hole': CONDA_PROMPT_MODIFIER=(base) PYTHONPATH=/home/jmx001/my_program/my_robot_project/build/peg_in_hole/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/peg_in_hole build --build-base /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build install --record /home/jmx001/my_program/my_robot_project/build/peg_in_hole/install.log --single-version-externally-managed
+[0.472s] running egg_info
+[0.472s] creating ../../build/peg_in_hole/peg_in_hole.egg-info
+[0.472s] writing ../../build/peg_in_hole/peg_in_hole.egg-info/PKG-INFO
+[0.472s] writing dependency_links to ../../build/peg_in_hole/peg_in_hole.egg-info/dependency_links.txt
+[0.473s] writing requirements to ../../build/peg_in_hole/peg_in_hole.egg-info/requires.txt
+[0.473s] writing top-level names to ../../build/peg_in_hole/peg_in_hole.egg-info/top_level.txt
+[0.473s] writing manifest file '../../build/peg_in_hole/peg_in_hole.egg-info/SOURCES.txt'
+[0.474s] reading manifest file '../../build/peg_in_hole/peg_in_hole.egg-info/SOURCES.txt'
+[0.474s] writing manifest file '../../build/peg_in_hole/peg_in_hole.egg-info/SOURCES.txt'
+[0.474s] running build
+[0.474s] running build_py
+[0.475s] creating /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build
+[0.475s] creating /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build/lib
+[0.475s] creating /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build/lib/peg_in_hole
+[0.475s] copying peg_in_hole/__init__.py -> /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build/lib/peg_in_hole
+[0.475s] running install
+[0.475s] running install_lib
+[0.475s] creating /home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages/peg_in_hole
+[0.475s] copying /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build/lib/peg_in_hole/__init__.py -> /home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages/peg_in_hole
+[0.476s] byte-compiling /home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages/peg_in_hole/__init__.py to __init__.cpython-310.pyc
+[0.476s] running install_egg_info
+[0.477s] Copying ../../build/peg_in_hole/peg_in_hole.egg-info to /home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages/peg_in_hole-0.1.0-py3.10.egg-info
+[0.477s] running install_scripts
+[0.490s] writing list of installed files to '/home/jmx001/my_program/my_robot_project/build/peg_in_hole/install.log'
+[0.502s] Invoked command in '/home/jmx001/my_program/my_robot_project/source/peg_in_hole' returned '0': CONDA_PROMPT_MODIFIER=(base) PYTHONPATH=/home/jmx001/my_program/my_robot_project/build/peg_in_hole/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/peg_in_hole build --build-base /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build install --record /home/jmx001/my_program/my_robot_project/build/peg_in_hole/install.log --single-version-externally-managed

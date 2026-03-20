@@ -1,0 +1,24 @@
+running egg_info
+creating ../../build/peg_in_hole/peg_in_hole.egg-info
+writing ../../build/peg_in_hole/peg_in_hole.egg-info/PKG-INFO
+writing dependency_links to ../../build/peg_in_hole/peg_in_hole.egg-info/dependency_links.txt
+writing requirements to ../../build/peg_in_hole/peg_in_hole.egg-info/requires.txt
+writing top-level names to ../../build/peg_in_hole/peg_in_hole.egg-info/top_level.txt
+writing manifest file '../../build/peg_in_hole/peg_in_hole.egg-info/SOURCES.txt'
+reading manifest file '../../build/peg_in_hole/peg_in_hole.egg-info/SOURCES.txt'
+writing manifest file '../../build/peg_in_hole/peg_in_hole.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build
+creating /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build/lib
+creating /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build/lib/peg_in_hole
+copying peg_in_hole/__init__.py -> /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build/lib/peg_in_hole
+running install
+running install_lib
+creating /home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages/peg_in_hole
+copying /home/jmx001/my_program/my_robot_project/build/peg_in_hole/build/lib/peg_in_hole/__init__.py -> /home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages/peg_in_hole
+byte-compiling /home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages/peg_in_hole/__init__.py to __init__.cpython-310.pyc
+running install_egg_info
+Copying ../../build/peg_in_hole/peg_in_hole.egg-info to /home/jmx001/my_program/my_robot_project/install/peg_in_hole/lib/python3.10/site-packages/peg_in_hole-0.1.0-py3.10.egg-info
+running install_scripts
+writing list of installed files to '/home/jmx001/my_program/my_robot_project/build/peg_in_hole/install.log'

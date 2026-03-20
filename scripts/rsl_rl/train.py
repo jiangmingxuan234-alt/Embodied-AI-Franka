@@ -9,6 +9,7 @@
 
 import argparse
 import sys
+import os
 
 from isaaclab.app import AppLauncher
 
@@ -44,8 +45,24 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+# =========================================================================
+# 🌟 核心修改区：击破“套娃路径”，强制让 train.py 认识我们的环境
+# =========================================================================
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "../.."))
+extension_root_dir = os.path.join(project_root, "source", "peg_in_hole")
+sys.path.insert(0, extension_root_dir)
+
+try:
+    # 强行导入我们的包，触发 __init__.py 里的环境和 PPO 参数注册
+    import peg_in_hole.tasks.manipulation.peg_in_hole
+    print("\n✅ 成功将自定义环境和 PPO 算法载入训练脚本！\n")
+except ModuleNotFoundError as e:
+    print(f"\n❌ 找不到环境模块，请检查路径: {extension_root_dir}\n")
+    raise e
+# =========================================================================
+
 import gymnasium as gym
-import os
 import torch
 from datetime import datetime
 
@@ -64,8 +81,6 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
-# Import extensions to set up environment tasks
-import ext_template.tasks  # noqa: F401
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True

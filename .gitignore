@@ -34,3 +34,7 @@ _isaac_sim*
 _repo
 _build
 .lastformat
+*.pth
+*.hdf5
+__pycache__/
+logs/

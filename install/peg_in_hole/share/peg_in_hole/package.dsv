@@ -1,0 +1,3 @@
+source;share/peg_in_hole/hook/pythonpath.ps1
+source;share/peg_in_hole/hook/pythonpath.dsv
+source;share/peg_in_hole/hook/pythonpath.sh
