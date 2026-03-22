@@ -1,0 +1,32 @@
+franka_hybrid_policy_node:
+  ros__parameters:
+    topic_joint_states: /joint_states
+    topic_ee_pose: /franka/ee_pose
+    topic_object_pose: /udisk/pose
+    topic_joint_command: /joint_command
+
+    control_rate_hz: 20.0
+    goal_position: [0.40, 0.0, 0.40]
+
+    checkpoint_path: /home/jmx001/my_program/my_robot_project/logs/robomimic/Isaac-UDisk-Grasp-v0/bc/20260320182155/models/model_epoch_100.pth
+    dataset_path: /home/jmx001/my_program/my_robot_project/logs/robomimic/rmpflow_expert.hdf5
+
+    enable_assist: true
+    assist_descend_xy: 0.10
+    assist_descend_z: -0.06
+    assist_hover_xy: 0.18
+    assist_hover_z: -0.16
+    assist_stuck_eps: 0.0006
+    assist_stuck_steps: 12
+    assist_max_steps: 1400
+    assist_mix_policy: 0.05
+    assist_knn_k: 96
+
+    grasp_xy: 0.10
+    grasp_z: 0.14
+    lift_success_z: 0.10
+    goal_tolerance: 0.08
+
+    arm_delta_limit: [0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004]
+    soft_limit_margin: 0.05
+    soft_limit_pullback: 0.003

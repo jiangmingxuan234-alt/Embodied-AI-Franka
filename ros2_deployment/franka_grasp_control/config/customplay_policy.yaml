@@ -1,0 +1,38 @@
+franka_customplay_ros_node:
+  ros__parameters:
+    topic_joint_states: /joint_states
+    topic_ee_pose: /franka/ee_pose
+    topic_object_pose: /udisk/pose
+    topic_joint_command: /joint_command
+
+    control_rate_hz: 15.0
+    goal_position: [0.40, 0.0, 0.40]
+
+    checkpoint_path: /home/jmx001/my_program/my_robot_project/logs/robomimic/Isaac-UDisk-Grasp-v0/bc/20260320182155/models/model_epoch_100.pth
+    dataset_path: /home/jmx001/my_program/my_robot_project/logs/robomimic/rmpflow_expert.hdf5
+
+    arm_delta_limit: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
+    arm_delta_gain: 3.2
+    ema_alpha: 0.7
+
+    near_object_dist: 0.40
+    near_object_gain_scale: 0.60
+    fine_xy_thresh: 0.105
+    fine_relz_thresh: -0.14
+
+    delta_deadband: 0.00025
+    delta_deadband_far: 0.00010
+    flip_suppress_threshold: 0.0015
+    arm_slew_limit: [0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004]
+
+    nodding_damp_joints: [3, 5]
+    nodding_damp_scale: 0.5
+    nodding_xy_thresh: 0.11
+    nodding_abs_relz_max: 0.22
+
+    stall_best_margin: 0.0020
+    stall_steps: 26
+
+    grasp_xy: 0.09
+    grasp_z: 0.10
+    log_every_n_steps: 30
