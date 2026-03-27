@@ -7,6 +7,8 @@
 [![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://docs.python.org/3/whatsnew/3.10.html)
 [![ROS2](https://img.shields.io/badge/ROS2-Humble-blue.svg)](https://docs.ros.org/en/humble/)
 
+### BC + 状态机辅助抓取效果
+
 <p align="center">
   <img src="demo.gif" width="600" alt="BC + 状态机辅助抓取演示">
 </p>
