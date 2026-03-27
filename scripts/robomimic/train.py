@@ -269,7 +269,7 @@ def main(args: argparse.Namespace):
             # 2) 策略骨干网络（部署优先：保持无状态 MLP，便于 ROS2 实时推理）
             config.algo.actor_layer_dims = [256, 256, 256]
 
-            # 3) 关闭 RNN，回归单帧 BC（无隐藏状态，部署链路更简单）
+            # 3) RNN 设置（通过命令行 --rnn 开启）
             config.algo.rnn.enabled = False
             config.train.seq_length = 1
             config.train.pad_seq_length = True
@@ -289,6 +289,18 @@ def main(args: argparse.Namespace):
             # 6) 优化稳定性
             config.train.max_grad_norm = 10.0
             config.algo.optim_params.policy.learning_rate.initial = 1e-4
+
+            # RNN 覆盖（--rnn 时启用）
+            if args.rnn:
+                config.algo.rnn.enabled = True
+                config.algo.rnn.horizon = 10
+                config.algo.rnn.hidden_dim = 400
+                config.algo.rnn.rnn_type = "LSTM"
+                config.algo.rnn.num_layers = 2
+                config.train.seq_length = 10
+                config.train.pad_seq_length = True
+                config.train.batch_size = 64
+                config.train.num_epochs = 200
     if args.dataset is not None:
         # 🌟 喂给它梦寐以求的“列表套字典”格式
         config.train.data = [{"path": args.dataset}]
@@ -335,6 +347,7 @@ def main(args: argparse.Namespace):
     except Exception as e:
         res_str = f"run failed with error:\n{e}\n\n{traceback.format_exc()}"
     print(res_str)
+    import sys; sys.stdout.flush()
 
 
 if __name__ == "__main__":
@@ -345,6 +358,7 @@ if __name__ == "__main__":
     parser.add_argument("--algo", type=str, default=None)
     parser.add_argument("--log_dir", type=str, default="robomimic")
     parser.add_argument("--normalize_training_actions", action="store_true", default=False)
+    parser.add_argument("--rnn", action="store_true", default=False, help="启用 RNN-BC")
     
     args = parser.parse_args()
     main(args)
