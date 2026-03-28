@@ -1,0 +1,17 @@
+franka_act_policy_node:
+  ros__parameters:
+    checkpoint_path: /home/jmx001/my_program/my_robot_project/logs/act_policy/act_epoch_300.pt
+    norm_stats_path: /home/jmx001/my_program/my_robot_project/logs/act_policy/norm_stats.npz
+
+    control_rate_hz: 20.0
+    goal_position: [0.40, 0.0, 0.40]
+    temporal_decay: 0.1
+
+    target_slew_limit: [0.006, 0.006, 0.006, 0.006, 0.006, 0.006, 0.006]
+
+    grasp_xy: 0.05
+    grasp_z: 0.06
+
+    stuck_eps: 0.0006
+    stuck_steps: 25
+    assist_max_steps: 1400

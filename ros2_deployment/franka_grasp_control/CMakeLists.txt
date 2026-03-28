@@ -21,6 +21,7 @@ install(PROGRAMS
   scripts/franka_joint_publisher.py
   scripts/franka_hybrid_policy_node.py
   scripts/franka_customplay_ros_node.py
+  scripts/franka_act_policy_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
