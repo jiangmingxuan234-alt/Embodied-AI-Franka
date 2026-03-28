@@ -13,6 +13,12 @@
   <img src="demo.gif" width="600" alt="BC + 状态机辅助抓取演示">
 </p>
 
+### ACT 算法训练效果
+
+<p align="center">
+  <img src="output.gif" width="600" alt="ACT 算法抓取演示">
+</p>
+
 ---
 
 ## 目录
