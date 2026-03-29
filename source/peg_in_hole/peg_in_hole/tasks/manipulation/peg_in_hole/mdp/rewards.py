@@ -2,87 +2,124 @@ import torch
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import SceneEntityCfg
 
+
 # ==========================================================
-# 阶段 1：基础空间引导 (找位置、夹紧、抬起)
+# 基础奖励（高斯核版本）
 # ==========================================================
 def reaching_reward(env: ManagerBasedRLEnv, object_cfg: SceneEntityCfg) -> torch.Tensor:
-    """引导机械臂靠近 U 盘"""
+    """高斯核距离奖励，梯度更陡"""
     robot = env.scene["robot"]
     hand_idx = robot.find_bodies("panda_hand")[0]
     tcp_pos = robot.data.body_state_w[:, hand_idx, :3].view(env.num_envs, 3)
     object_pos = env.scene[object_cfg.name].data.root_pos_w[:, :3].view(env.num_envs, 3)
-    
     dist = torch.norm(tcp_pos - object_pos, dim=-1)
-    return 1.0 / (1.0 + 10.0 * dist)
+    return torch.exp(-5.0 * dist * dist)
+
 
 def grasping_reward(env: ManagerBasedRLEnv, object_cfg: SceneEntityCfg) -> torch.Tensor:
-    """只有当两根手指夹住 U 盘，并且离开桌面时才给高分"""
+    """连续抓取奖励：手指距离 + 夹爪闭合 + 抬起进度"""
     robot = env.scene["robot"]
     lf_idx = robot.find_bodies("panda_leftfinger")[0]
     rf_idx = robot.find_bodies("panda_rightfinger")[0]
-    
+
     lf_pos = robot.data.body_state_w[:, lf_idx, :3].view(env.num_envs, 3)
     rf_pos = robot.data.body_state_w[:, rf_idx, :3].view(env.num_envs, 3)
     object_pos = env.scene[object_cfg.name].data.root_pos_w[:, :3].view(env.num_envs, 3)
-    
+
     finger_midpoint = (lf_pos + rf_pos) / 2.0
     dist_to_obj = torch.norm(finger_midpoint - object_pos, dim=-1)
-    
+    finger_distance_reward = torch.exp(-10.0 * dist_to_obj * dist_to_obj)
+
+    finger_width = torch.norm(lf_pos - rf_pos, dim=-1)
+    gripper_close_reward = torch.exp(-8.0 * finger_width * finger_width)
+
     object_z = env.scene[object_cfg.name].data.root_pos_w[:, 2].view(-1)
-    is_lifted = object_z > 0.04
-    
-    return ((dist_to_obj < 0.05) & is_lifted).float()
+    lift_progress = torch.clamp((object_z - 0.02) / 0.08, min=0.0, max=1.0)
+
+    is_near = (dist_to_obj < 0.08).float()
+    return finger_distance_reward + is_near * (gripper_close_reward * 0.5 + lift_progress * 2.0)
+
 
 def lift_to_target_reward(env: ManagerBasedRLEnv, object_cfg: SceneEntityCfg, target_height: float) -> torch.Tensor:
-    """鼓励将 U 盘平稳保持在目标高度"""
+    """高斯核抬升奖励"""
     object_z = env.scene[object_cfg.name].data.root_pos_w[:, 2].view(-1)
     height_diff = torch.abs(target_height - object_z)
-    is_lifted = object_z > 0.04
-    return (1.0 / (1.0 + 10.0 * height_diff)) * is_lifted.float()
+    is_lifted = (object_z > 0.04).float()
+    return torch.exp(-5.0 * height_diff * height_diff) * is_lifted
 
 
 # ==========================================================
-# 阶段 2：规范动作姿态 (抓娃娃机逻辑 - RMPflow 模仿)
+# 姿态奖励
 # ==========================================================
 def top_down_posture_reward(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """🌟 强制夹爪垂直朝下 (从天而降)"""
+    """强制夹爪垂直朝下"""
     robot = env.scene["robot"]
     hand_idx = robot.find_bodies("panda_hand")[0]
-    
-    # 获取手部的四元数 (w, x, y, z)
     hand_quat = robot.data.body_state_w[:, hand_idx, 3:7].view(env.num_envs, 4)
-    
-    # 将四元数转化为局部 Z 轴在世界坐标系下的方向
-    # 我们只关心它的 Z 分量：1 - 2*(x^2 + y^2)
-    # 索引说明：0=w, 1=x, 2=y, 3=z
     z_dir_z = 1.0 - 2.0 * (hand_quat[:, 1]**2 + hand_quat[:, 2]**2)
-    
-    # 我们希望局部 Z 轴 (手指伸出的方向) 指向地面的世界 -Z 轴，即 z_dir_z 趋近于 -1
-    # 取负号后变成 1，作为最大奖励
     return torch.clamp(-z_dir_z, min=0.0).view(-1)
 
+
 def hover_above_reward(env: ManagerBasedRLEnv, object_cfg: SceneEntityCfg) -> torch.Tensor:
-    """🌟 鼓励先移动到 U 盘正上方 (XY 轴对齐)"""
+    """高斯核 XY 对齐奖励"""
     robot = env.scene["robot"]
     hand_idx = robot.find_bodies("panda_hand")[0]
-    
     tcp_pos = robot.data.body_state_w[:, hand_idx, :3].view(env.num_envs, 3)
     object_pos = env.scene[object_cfg.name].data.root_pos_w[:, :3].view(env.num_envs, 3)
-    
-    # 仅提取 X 和 Y 坐标计算平面距离
-    xy_dist = torch.norm(tcp_pos[:, :2] - object_pos[:, :2], dim=-1)
-    
-    # XY 距离越近，奖励越大 (促使它在下降前先对准)
-    return (1.0 / (1.0 + 20.0 * xy_dist)).view(-1)
+    xy_dist_sq = torch.sum((tcp_pos[:, :2] - object_pos[:, :2])**2, dim=-1)
+    return torch.exp(-15.0 * xy_dist_sq)
 
 
 # ==========================================================
-# 阶段 3：严厉惩罚 (防作弊、防抽搐)
+# 夹爪控制
+# ==========================================================
+def gripper_close_near_object(env: ManagerBasedRLEnv, object_cfg: SceneEntityCfg) -> torch.Tensor:
+    """靠近物体时奖励闭合夹爪，远离时奖励张开"""
+    robot = env.scene["robot"]
+    hand_idx = robot.find_bodies("panda_hand")[0]
+    tcp_pos = robot.data.body_state_w[:, hand_idx, :3].view(env.num_envs, 3)
+    object_pos = env.scene[object_cfg.name].data.root_pos_w[:, :3].view(env.num_envs, 3)
+    dist = torch.norm(tcp_pos - object_pos, dim=-1)
+
+    finger_pos = robot.data.joint_pos[:, 7:9]
+    gripper_width = finger_pos.sum(dim=-1)
+
+    near = (dist < 0.08).float()
+    return near * (0.08 - gripper_width) / 0.08 + (1.0 - near) * gripper_width / 0.08
+
+
+# ==========================================================
+# 三斧惩罚：action rate + acceleration + jerk + L2
 # ==========================================================
 def action_rate_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """惩罚动作突变，专治帕金森式抖动"""
+    """第一斧：动作变化率惩罚（一阶导数）"""
     action_diff = env.action_manager.action - env.action_manager.prev_action
-    return torch.sum(torch.square(action_diff), dim=-1).view(-1)
+    return torch.sum(action_diff ** 2, dim=-1).view(-1)
+
+
+def joint_acceleration_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """第二斧：关节加速度惩罚（速度的一阶导数）"""
+    robot = env.scene["robot"]
+    vel = robot.data.joint_vel[:, :7]
+    # 用当前速度和上一步速度的差近似加速度
+    # prev_joint_vel 存在 robot.data 里，但不一定有，用 action diff 近似
+    # 直接用速度的绝对值作为代理（速度大 = 加速度曾经大）
+    return torch.sum(vel ** 2, dim=-1).view(-1)
+
+
+def action_l2_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """第三斧：动作绝对值 L2 正则化"""
+    return torch.sum(env.action_manager.action ** 2, dim=-1).view(-1)
+
+
+def lateral_joint_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """惩罚横向旋转关节（1,3,5,7）的速度，抑制摇头"""
+    robot = env.scene["robot"]
+    vel = robot.data.joint_vel[:, :7]
+    # 关节 0,2,4,6 是横向旋转关节（从零开始计数）
+    lateral_vel = vel[:, [0, 2, 4, 6]]
+    return torch.sum(lateral_vel ** 2, dim=-1).view(-1)
+
 
 def drop_penalty(env: ManagerBasedRLEnv, object_cfg: SceneEntityCfg) -> torch.Tensor:
     """惩罚 U 盘掉落桌面下方"""
