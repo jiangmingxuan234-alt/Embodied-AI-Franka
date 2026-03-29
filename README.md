@@ -217,8 +217,25 @@ python scripts/act_policy/train_act.py
 **强化学习 (PPO)**
 
 ```bash
+# 纯 RL 从零训练
 python scripts/rsl_rl/train.py --task Isaac-UDisk-Grasp-v0
 ```
+
+**ACT → RL Fine-tune**
+
+```bash
+# 1. 提取 ACT 权重为 PPO 格式
+python scripts/act_policy/extract_actor_weights.py \
+    --act_checkpoint logs/act_policy/act_epoch_300.pt
+
+# 2. 用 ACT 权重初始化 PPO Actor 进行 fine-tune
+python scripts/rsl_rl/train_finetune.py \
+    --task Isaac-UDisk-Grasp-Finetune-v0 \
+    --act_checkpoint logs/act_policy/act_epoch_300_for_ppo.pt \
+    --init_from_act
+```
+
+详细说明见 [scripts/rsl_rl/README.md](scripts/rsl_rl/README.md)
 
 ### 4. 验证
 
@@ -228,13 +245,34 @@ python scripts/rsl_rl/train.py --task Isaac-UDisk-Grasp-v0
 python custom_play.py
 ```
 
-通用 BC 评估（批量 rollout）：
+**ACT 验证：**
+
+```bash
+python scripts/act_policy/play_act.py
+```
+
+**BC 通用评估（批量 rollout）：**
 
 ```bash
 python scripts/robomimic/play.py \
     --task Isaac-UDisk-Grasp-v0 \
     --checkpoint logs/robomimic/.../model_epoch_100.pth \
     --num_rollouts 10
+```
+
+**RL Fine-tune 验证：**
+
+```bash
+# 可视化推理（16 个并行环境）
+python scripts/rsl_rl/play.py \
+    --task Isaac-UDisk-Grasp-Finetune-v0 \
+    --num_envs 16
+
+# 批量评估成功率
+python scripts/rsl_rl/eval_finetuned.py \
+    --task Isaac-UDisk-Grasp-Finetune-v0 \
+    --num_envs 50 \
+    --num_episodes 5
 ```
 
 ---
