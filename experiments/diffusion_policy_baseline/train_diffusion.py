@@ -1,7 +1,7 @@
 """
 Diffusion Policy 训练脚本
-用 diffusers DDPMScheduler + 自定义 1D Conditional UNet
-数据：full_grasp_delta.hdf5 (obs=37dim, action=9dim delta 关节增量)
+用 diffusers DDPMScheduler + Conditional Transformer (DiT 风格)
+数据：full_grasp_abs_v5.hdf5 (obs=37dim, action=9dim 绝对关节位置)
 """
 import os
 import h5py
@@ -92,7 +92,7 @@ class GraspDataset(Dataset):
         return torch.from_numpy(obs_seq), torch.from_numpy(act_seq)
 
 
-# ======================== 1D Conditional UNet ========================
+# ======================== Conditional Transformer (DiT 风格) ========================
 class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -106,89 +106,63 @@ class SinusoidalPosEmb(nn.Module):
         return torch.cat([emb.sin(), emb.cos()], dim=-1)
 
 
-class ConditionalResBlock1D(nn.Module):
-    def __init__(self, in_ch, out_ch, cond_dim):
+class ConditionalTransformer1D(nn.Module):
+    """DiT 风格的 Transformer 噪声预测网络，替代 UNet"""
+    def __init__(self, action_dim=9, cond_dim=256, d_model=256, nhead=4, num_layers=4, pred_horizon=8):
         super().__init__()
-        self.blocks = nn.Sequential(
-            nn.Conv1d(in_ch, out_ch, 3, padding=1),
-            nn.GroupNorm(8, out_ch),
-            nn.Mish(),
-            nn.Conv1d(out_ch, out_ch, 3, padding=1),
-            nn.GroupNorm(8, out_ch),
-            nn.Mish(),
-        )
-        self.cond_proj = nn.Linear(cond_dim, out_ch)
-        self.residual = nn.Conv1d(in_ch, out_ch, 1) if in_ch != out_ch else nn.Identity()
+        self.d_model = d_model
 
-    def forward(self, x, cond):
-        h = self.blocks[0](x)
-        h = self.blocks[1](h)
-        h = self.blocks[2](h)
-        # Add condition
-        h = h + self.cond_proj(cond)[:, :, None]
-        h = self.blocks[3](h)
-        h = self.blocks[4](h)
-        h = self.blocks[5](h)
-        return h + self.residual(x)
-
-
-class ConditionalUNet1D(nn.Module):
-    def __init__(self, action_dim=9, cond_dim=128, channels=(256, 512, 1024)):
-        super().__init__()
+        # 时间步嵌入
         self.time_emb = nn.Sequential(
-            SinusoidalPosEmb(cond_dim),
-            nn.Linear(cond_dim, cond_dim),
+            SinusoidalPosEmb(d_model),
+            nn.Linear(d_model, d_model),
             nn.Mish(),
-            nn.Linear(cond_dim, cond_dim),
+            nn.Linear(d_model, d_model),
         )
-        self.input_proj = nn.Conv1d(action_dim, channels[0], 1)
 
-        # Encoder
-        self.down_blocks = nn.ModuleList()
-        self.down_samples = nn.ModuleList()
-        for i in range(len(channels) - 1):
-            self.down_blocks.append(ConditionalResBlock1D(channels[i], channels[i + 1], cond_dim))
-            self.down_samples.append(nn.Conv1d(channels[i + 1], channels[i + 1], 3, stride=2, padding=1))
+        # 动作 token 嵌入
+        self.action_proj = nn.Linear(action_dim, d_model)
+        # 可学习位置编码
+        self.pos_emb = nn.Parameter(torch.randn(1, pred_horizon, d_model) * 0.02)
+        # 条件投影（obs + time → adaLN 调制）
+        self.cond_proj = nn.Linear(cond_dim, d_model)
 
-        # Middle
-        self.mid_block = ConditionalResBlock1D(channels[-1], channels[-1], cond_dim)
+        # Transformer Encoder
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model, nhead=nhead, dim_feedforward=d_model * 4,
+            batch_first=True, dropout=0.1, activation="gelu",
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
-        # Decoder
-        self.up_blocks = nn.ModuleList()
-        self.up_samples = nn.ModuleList()
-        for i in range(len(channels) - 1, 0, -1):
-            self.up_samples.append(nn.ConvTranspose1d(channels[i], channels[i], 4, stride=2, padding=1))
-            self.up_blocks.append(ConditionalResBlock1D(channels[i] * 2, channels[i - 1], cond_dim))
-
-        self.output_proj = nn.Conv1d(channels[0], action_dim, 1)
+        # 输出投影
+        self.output_proj = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, action_dim),
+        )
 
     def forward(self, x, timestep, cond):
         """
-        x: (B, action_dim, pred_horizon) — noisy action sequence
+        x: (B, action_dim, pred_horizon) — noisy action sequence (UNet 格式，保持接口兼容)
         timestep: (B,) — diffusion timestep
         cond: (B, cond_dim) — observation condition
         """
-        t_emb = self.time_emb(timestep)
-        cond = cond + t_emb  # combine obs and time
+        # x 从 UNet 格式 (B, C, T) 转为 (B, T, C)
+        x = x.permute(0, 2, 1)
+        B, T, _ = x.shape
 
-        h = self.input_proj(x)
-        skips = []
-        for block, down in zip(self.down_blocks, self.down_samples):
-            h = block(h, cond)
-            skips.append(h)
-            h = down(h)
+        # 嵌入
+        t_emb = self.time_emb(timestep)           # (B, d_model)
+        cond_emb = self.cond_proj(cond) + t_emb    # (B, d_model)
 
-        h = self.mid_block(h, cond)
+        # 动作 token + 位置编码 + 条件调制
+        h = self.action_proj(x) + self.pos_emb[:, :T, :] + cond_emb.unsqueeze(1)
 
-        for up, block, skip in zip(self.up_samples, self.up_blocks, reversed(skips)):
-            h = up(h)
-            # Handle size mismatch from downsampling
-            if h.shape[-1] != skip.shape[-1]:
-                h = h[..., :skip.shape[-1]]
-            h = torch.cat([h, skip], dim=1)
-            h = block(h, cond)
+        # Transformer
+        h = self.transformer(h)
 
-        return self.output_proj(h)
+        # 输出
+        out = self.output_proj(h)  # (B, T, action_dim)
+        return out.permute(0, 2, 1)  # (B, action_dim, T) — 保持 UNet 输出格式
 
 
 class DiffusionPolicy(nn.Module):
@@ -199,7 +173,9 @@ class DiffusionPolicy(nn.Module):
             nn.Mish(),
             nn.Linear(cond_dim, cond_dim),
         )
-        self.noise_pred_net = ConditionalUNet1D(action_dim=action_dim, cond_dim=cond_dim)
+        self.noise_pred_net = ConditionalTransformer1D(
+            action_dim=action_dim, cond_dim=cond_dim, pred_horizon=pred_horizon,
+        )
         self.obs_horizon = obs_horizon
         self.pred_horizon = pred_horizon
         self.action_dim = action_dim

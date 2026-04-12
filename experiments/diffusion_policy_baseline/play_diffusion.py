@@ -108,6 +108,7 @@ def main():
     obs_deque = deque(maxlen=obs_horizon)
     action_queue = []
     step = 0
+    prev_target = INIT_JOINTS.copy()
 
     print(f"Loaded: {args_cli.checkpoint}")
     print(f"Diffusion Policy: obs_h={obs_horizon}, pred_h={pred_horizon}, act_h={action_horizon}, delta={is_delta}")
@@ -134,6 +135,8 @@ def main():
 
         rel = obj_pos - ee_pos
         dist = float(np.linalg.norm(rel))
+        dist_xy = float(np.linalg.norm(rel[:2]))
+        dist_z = float(abs(rel[2]))
 
         if len(action_queue) == 0:
             obs_seq = np.stack(list(obs_deque), axis=0)
@@ -151,8 +154,24 @@ def main():
         if is_delta:
             target[:7] = np.clip(target[:7], -0.05, 0.05)
             target = j_pos + target
-        # 绝对位置模式：直接用预测值，不加 slew rate，让 PD 控制器追踪
+
+        # EMA 平滑
+        target = 0.7 * target + 0.3 * prev_target
+
+        # 规则夹爪 + 强制下压
+        if dist_xy < 0.09 and dist_z < 0.12:
+            target[7] = 0.0
+            target[8] = 0.0
+            # 强制下压：如果 xy 已对齐但 z 还没到位，给关节 1,3,5 一个微小下压增量
+            if dist_z > 0.04:
+                target[1] += 0.005  # 肩关节前倾
+                target[3] += 0.005  # 肘关节下压
+        else:
+            target[7] = 0.04
+            target[8] = 0.04
+
         target = np.clip(target, J_LOW, J_HIGH).astype(np.float32)
+        prev_target = target.copy()
         franka.apply_action(ArticulationAction(joint_positions=target))
 
         if step % 15 == 0:
